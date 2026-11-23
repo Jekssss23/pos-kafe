@@ -1,5 +1,15 @@
 // Koneksi SQLite + skema 5 tabel + seeder data demo (otomatis saat database kosong)
-const Database = require('better-sqlite3'), bcrypt = require('bcryptjs'), path = require('path'), fs = require('fs');
+const bcrypt = require('bcryptjs'), path = require('path'), fs = require('fs');
+
+let Database;
+let isNodeSqlite = false;
+
+try {
+  Database = require('node:sqlite').DatabaseSync;
+  isNodeSqlite = true;
+} catch (e) {
+  Database = require('better-sqlite3');
+}
 
 const isVercel = Boolean(process.env.VERCEL);
 let dbPath = process.env.DB_FILE;
@@ -16,10 +26,31 @@ if (!dbPath) {
 }
 
 const db = new Database(dbPath);
+
+if (isNodeSqlite) {
+  db.transaction = function(fn) {
+    return function(...args) {
+      db.exec('BEGIN');
+      try {
+        const res = fn(...args);
+        db.exec('COMMIT');
+        return res;
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    };
+  };
+  db.pragma = function(p) {
+    try { db.exec('PRAGMA ' + p); } catch (e) {}
+  };
+}
+
 if (!isVercel) {
   try { db.pragma('journal_mode=WAL'); } catch (e) {}
 }
 db.pragma('foreign_keys=ON');
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,nama_lengkap TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('admin','kasir')),status TEXT NOT NULL DEFAULT 'aktif' CHECK(status IN('aktif','nonaktif')),created_at TEXT DEFAULT(datetime('now','localtime')));
 CREATE TABLE IF NOT EXISTS categories(id INTEGER PRIMARY KEY AUTOINCREMENT,nama_kategori TEXT NOT NULL UNIQUE,slug TEXT NOT NULL UNIQUE,status TEXT NOT NULL DEFAULT 'aktif');
@@ -63,4 +94,5 @@ if (!db.prepare('SELECT 1 FROM users').get()) {
     }
   }
 }
+
 module.exports = db;

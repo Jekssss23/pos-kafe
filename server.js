@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const fail = (s, m) => { const e = new Error(m); e.status = s; throw e; };
 const wrap = fn => (req, res) => { try { fn(req, res); } catch (e) {
   if (e.status) return res.status(e.status).json({ error: e.message });
-  if (String(e.code).startsWith('SQLITE_CONSTRAINT')) return res.status(409).json({ error: 'Data duplikat atau tidak valid' });
+  if (String(e.code).startsWith('SQLITE_CONSTRAINT') || String(e.message).includes('constraint failed')) return res.status(409).json({ error: 'Data duplikat atau tidak valid' });
   console.error(e); res.status(500).json({ error: 'Terjadi kesalahan server' }); } };
 const auth = (req, res, next) => req.session.user ? next() : res.status(401).json({ error: 'Silakan login' });
 const admin = (req, res, next) => req.session.user.role === 'admin' ? next() : res.status(403).json({ error: 'Khusus administrator' });
